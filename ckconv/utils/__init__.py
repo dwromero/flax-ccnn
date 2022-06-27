@@ -1,0 +1,1 @@
+from .iterables import pairwise as pairwise_iterable

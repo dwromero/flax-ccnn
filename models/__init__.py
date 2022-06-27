@@ -1,0 +1,1 @@
+from .resnet import ResNet_image, ResNet_sequence
