@@ -10,9 +10,7 @@ def construct_optimizer(
 
     optimizer_type = cfg.optimizer.name.lower()
     optimizer_type = getattr(optax, optimizer_type)
-    optimizer = optimizer_type(
-        learning_rate=lr_scheduler,
-    )
+    optimizer = optimizer_type(learning_rate=lr_scheduler)
     # Weight decay is implemented somewhere else.
     return optimizer
 

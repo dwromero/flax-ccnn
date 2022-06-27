@@ -49,8 +49,8 @@ def main(
     # Construct model
     model = construct_model(cfg, datamodule)
     # initialize model with datamodules & pack the parameters in a TrainState
-    model.initialize_network(datamodule.train_dataloader)
-    model.create_state()
+    model.create_state(datamodule.train_dataloader)
+    # model.create_state()
 
     # Create trainer
     trainer = construct_trainer(cfg)

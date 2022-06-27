@@ -16,8 +16,8 @@ class S4Block(nn.Module):
 
         # Nonlinear layers
         self.nonlinears = [
-                self.NonlinearType,
-                self.NonlinearType,
+                self.NonlinearType(),
+                self.NonlinearType(),
             ]
 
         # Norm layers

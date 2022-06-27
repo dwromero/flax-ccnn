@@ -38,14 +38,17 @@ class WrapperBase:
     ):
         init_rng = jax.random.PRNGKey(self.cfg.seed)
         example_data, _ = next(iter(train_dataloader))
-        variables = self.network.init(init_rng, example_data, train=True)
-        self.init_params, self.init_batch_stats = variables['params'], variables['batch_stats']
+        init_variables = self.network.init(init_rng, example_data, train=True)
+        return init_variables
 
-    def create_state(self):
+    def create_state(self, train_dataloader):
+        # Initialize network
+        init_variables = self.initialize_network(train_dataloader)
+        # Use initialization parameters to create state
         self.state = TrainState.create(
             apply_fn=self.network.apply,
-            params=self.init_params,
-            batch_stats=self.init_batch_stats,
+            params=init_variables['params'],
+            batch_stats=init_variables['batch_stats'],
             tx=self.configure_optimizers(),
         )
 
@@ -122,15 +125,14 @@ class ClassificationWrapper(WrapperBase):
         # Get loss, gradients for loss, and other outputs of loss function
         (loss, (accuracy, new_state)), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
         # Update parameters and batch statistics
-        state = self.state.apply_gradients(grads=grads, batch_stats=new_state['batch_stats'])
+        state = state.apply_gradients(grads=grads, batch_stats=new_state['batch_stats'])
         return state, loss, accuracy
 
     def validation_step(self, state, batch):
         # Return the accuracy for a single batch
-        loss, (accuracy, _) = self.step(self.state.params, self.state.batch_stats, batch, train=False)
+        loss, (accuracy, _) = self.step(state.params, state.batch_stats, batch, train=False)
         return None, loss, accuracy
 
-    # Eval function
     def test_step(self, state, batch):
         return self.validation_step(state, batch)
 

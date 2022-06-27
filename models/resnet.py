@@ -47,12 +47,12 @@ class ResNetBase(nn.Module):
         NormType = getattr(nn, norm)
 
         # Define NonlinearType
-        NonlinearType = getattr(nn, nonlinearity)
+        NonlinearType = getattr(ckconv.nn, nonlinearity)
 
         # Create Input Layers
         self.conv1 = ConvType(features=hidden_channels)
         self.norm1 = NormType()
-        self.nonlinear = NonlinearType # TODO
+        self.nonlinear = NonlinearType()
 
         # Create Blocks
         # -------------------------
@@ -159,7 +159,7 @@ class ResNet_image(ResNetBase):
         out = jnp.mean(out, axis=(-3, -2))
         # Final layer
         out = self.out_layer(out)
-        return out.squeeze()
+        return out
 
 
 
