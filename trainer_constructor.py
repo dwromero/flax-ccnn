@@ -33,7 +33,8 @@ class Trainer:
                 # self.save_model(step=epoch)
             # self.logger.flush()
 
-    def train_epoch(self, model, train_dataloader, epoch):
+    @staticmethod
+    def train_epoch(model, train_dataloader, epoch):
         # Train model for one epoch, and log avg loss and accuracy
         metrics = defaultdict(list)
         for batch in tqdm(train_dataloader, desc='Training', leave=False):
@@ -46,7 +47,8 @@ class Trainer:
         print(f'Epoch {epoch} / Train / Loss = {avg_metrics["loss"]:.2f}, Accuracy = {avg_metrics["acc"]:.4f}')
             # self.logger.add_scalar('train/' + key, avg_train_metric, global_step=epoch)
 
-    def val_epoch(self, model, val_dataloader, epoch):
+    @staticmethod
+    def val_epoch(model, val_dataloader, epoch):
         # Train model for one epoch, and log avg loss and accuracy
         metrics = defaultdict(list)
         for batch in tqdm(val_dataloader, desc='Validation', leave=False):

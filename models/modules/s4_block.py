@@ -49,20 +49,21 @@ class S4Block(nn.Module):
 
     def __call__(self, x, train):
         shortcut = self.shortcut(x)
+        out = x
         # if prenorm: Norm -> Conv -> Nonlinear -> Linear -> Sum
         # else: Conv -> Nonlinear -> Linear -> Sum -> Norm
         if self.prenorm:
-            x = self.norm(x, use_running_average=not train)
+            out = self.norm(out, use_running_average=not train)
         # x = self.nonlinears[1](
         #     self.linear(self.dp(self.nonlinears[0](self.conv(x))))
         # )
-        x = self.nonlinears[1](
-            self.linear(self.nonlinears[0](self.conv(x)))
+        out = self.nonlinears[1](
+            self.linear(self.nonlinears[0](self.conv(out)))
         )
-        x = x + shortcut
+        out = out + shortcut
         if not self.prenorm:
-            x = self.norm(x, use_running_average=not train)
-        return x
+            out = self.norm(out, use_running_average=not train)
+        return out
 
 
 

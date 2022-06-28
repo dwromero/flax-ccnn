@@ -134,8 +134,15 @@ class MNISTDataModule(DataModule):
             self.collate_fn = self.default_collate_fn
 
     @staticmethod
-    def sequential_collate_fn(batch):
+    def default_collate_fn(batch) -> tuple[np.array, np.array]:
         x, y = DataModule.default_collate_fn(batch)
+        x = np.reshape(x, (*x.shape, 1))
+        batch = x, y
+        return batch
+
+    @staticmethod
+    def sequential_collate_fn(batch):
+        x, y = MNISTDataModule.default_collate_fn(batch)
         # If sequential, flatten the input [B, Y, X, C] -> [B, -1, C]
         x_shape = x.shape
         x = np.reshape(x, (x_shape[0], -1, x_shape[-1]))

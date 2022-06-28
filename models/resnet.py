@@ -1,3 +1,4 @@
+import flax.linen
 import jax.numpy as jnp
 import flax.linen as nn
 from . import modules
@@ -40,6 +41,8 @@ class ResNetBase(nn.Module):
         ConvType = partial(
             getattr(nn, conv_type),
             kernel_size=(5,) * data_dim,
+            kernel_init=nn.initializers.kaiming_normal(),
+            bias_init=nn.initializers.zeros,
         )
         # -------------------------
 

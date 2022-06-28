@@ -1,5 +1,6 @@
 import jax
 import optax
+import flax
 from flax import linen as nn
 from flax.training import train_state
 
@@ -13,7 +14,7 @@ from typing import Any
 
 class TrainState(train_state.TrainState):
     # A simple extension of TrainState to also include batch statistics
-    batch_stats: Any
+    batch_stats: flax.core.FrozenDict[str, Any]
 
 
 class WrapperBase:
@@ -23,13 +24,8 @@ class WrapperBase:
         cfg: OmegaConf,
     ):
         super().__init__()
-
         # Configuration file
         self.cfg = cfg
-
-        # Network parameters
-        self.init_params = None
-        self.init_batch_stats = None
         self.state = None
 
     def initialize_network(
@@ -44,16 +40,17 @@ class WrapperBase:
     def create_state(self, train_dataloader):
         # Initialize network
         init_variables = self.initialize_network(train_dataloader)
+        optimizer = construct_optimizer(self.cfg)
         # Use initialization parameters to create state
         self.state = TrainState.create(
             apply_fn=self.network.apply,
             params=init_variables['params'],
             batch_stats=init_variables['batch_stats'],
-            tx=self.configure_optimizers(),
+            tx=optimizer,
         )
 
-    def configure_optimizers(self):
-        return construct_optimizer(self.cfg)
+    # def configure_optimizers(self):
+    #     return construct_optimizer(self.cfg)
 
     def __call__(self, x):
         raise NotImplementedError
@@ -121,12 +118,12 @@ class ClassificationWrapper(WrapperBase):
         return loss, (accuracy, new_state)
 
     def training_step(self, state, batch):
-        loss_fn = lambda params: self.step(params, state.batch_stats, batch, train=True)
         # Get loss, gradients for loss, and other outputs of loss function
-        (loss, (accuracy, new_state)), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+        (loss, (accuracy, new_state)), grads = jax.value_and_grad(self.step, has_aux=True)\
+            (state.params, state.batch_stats, batch, train=True)
         # Update parameters and batch statistics
-        state = state.apply_gradients(grads=grads, batch_stats=new_state['batch_stats'])
-        return state, loss, accuracy
+        new_state = state.apply_gradients(grads=grads, batch_stats=new_state['batch_stats'])
+        return new_state, loss, accuracy
 
     def validation_step(self, state, batch):
         # Return the accuracy for a single batch
