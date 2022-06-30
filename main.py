@@ -1,10 +1,12 @@
 # torch
 import jax
 
+import os
+
 # Project
 import wandb
 
-# import ckconv
+import ckconv
 from dataset_constructor import construct_datamodule
 from model_constructor import construct_model
 from trainer_constructor import construct_trainer
@@ -55,9 +57,29 @@ def main(
     # Create trainer
     trainer = construct_trainer(cfg)
 
+    # Initialize wandb
+    if not cfg.train.do or cfg.debug:
+        mode = 'offline'
+    else:
+        mode = 'online'
+    wandb.init(
+        project=cfg.wandb.project,
+        config=ckconv.utils.flatten_configdict(cfg),
+        entity=cfg.wandb.entity,
+        save_code=True,
+        mode=mode,
+    )
+
     # Train
     if cfg.train.do:
         trainer.train(model, datamodule, cfg.train.epochs)
+        # Load best model
+        trainer.load_model(model, alias='best')
+
+    # Validate and test before finishing
+    trainer.validate(model, datamodule.val_dataloader, epoch=0)
+    trainer.test(model, datamodule.test_dataloader)
+
 
 
 

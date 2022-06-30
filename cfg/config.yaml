@@ -2,7 +2,7 @@
 
 # global parameters
 device: cuda            # TODO
-debug: True
+debug: False
 deterministic: False
 no_workers: -1
 seed: 0
@@ -101,8 +101,8 @@ test:
   before_train: False
 # wandb logging
 wandb:
-  project: main
-  entity: ccnn
+  project: flax-ccnn
+  entity: dwromero
 # checkpoint
 pretrained:
   load: False

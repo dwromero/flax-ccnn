@@ -15,7 +15,7 @@ def construct_optimizer(
         weight_decay=0.0,
     )
     # Weight decay is implemented somewhere else.
-    return optimizer
+    return optimizer, lr_scheduler
 
 
 def construct_lr_scheduler(
@@ -36,7 +36,7 @@ def construct_lr_scheduler(
         )
     else:
         print('WARNING: No scheduler will be used.')
-        lr_scheduler = cfg.optimizer.lr
+        lr_scheduler = optax.constant_schedule(value=cfg.optimizer.lr)
     return lr_scheduler
 
 

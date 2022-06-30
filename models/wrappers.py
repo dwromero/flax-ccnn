@@ -1,9 +1,16 @@
 import jax
 import optax
 import flax
+import wandb
 from flax import linen as nn
-from flax.training import train_state
+import jax.numpy as jnp
+from flax.training import train_state, checkpoints
 
+import glob
+import hydra
+import os
+
+import ckconv
 import models
 from optim import construct_optimizer
 
@@ -25,8 +32,10 @@ class WrapperBase:
     ):
         super().__init__()
         # Configuration file
+        self._lr_scheduler = None
         self.cfg = cfg
         self.state = None
+        self.no_params = None
 
     def initialize_network(
             self,
@@ -40,7 +49,7 @@ class WrapperBase:
     def create_state(self, train_dataloader):
         # Initialize network
         init_variables = self.initialize_network(train_dataloader)
-        optimizer = construct_optimizer(self.cfg)
+        optimizer, lr_scheduler = construct_optimizer(self.cfg)
         # Use initialization parameters to create state
         self.state = TrainState.create(
             apply_fn=self.network.apply,
@@ -48,15 +57,76 @@ class WrapperBase:
             batch_stats=init_variables['batch_stats'],
             tx=optimizer,
         )
-
-    # def configure_optimizers(self):
-    #     return construct_optimizer(self.cfg)
-
-    def __call__(self, x):
-        raise NotImplementedError
+        self._lr_scheduler = lr_scheduler # Used for logging purposes
 
     def on_train_start(self):
-        raise NotImplementedError
+        # Log number of parameters
+        no_params = ckconv.utils.no_params(self.state)
+        wandb.summary['no_params'] = no_params
+        self.no_params = no_params
+
+        # Log code
+        code = wandb.Artifact(
+            f"source-code-{wandb.run.name}", type="code"
+        )
+        # Get paths
+        paths = glob.glob(
+            hydra.utils.get_original_cwd() + "/**/*.py",
+            recursive=True,
+        )
+        paths += glob.glob(
+            hydra.utils.get_original_cwd() + "/**/*.yaml",
+            recursive=True,
+        )
+        # Filter paths
+        paths = list(filter(lambda x: "outputs" not in x, paths))
+        paths = list(filter(lambda x: "wandb" not in x, paths))
+        # Get all source files
+        for path in paths:
+            code.add_file(
+                path,
+                name=path.replace(f"{hydra.utils.get_original_cwd()}/", ""),
+            )
+        # Use the artifact
+        if not wandb.run.offline:
+            wandb.run.use_artifact(code)
+
+    def save(self, aliases, value, epoch):
+        ckpt_dir = os.path.join(wandb.run.dir, f'model-{wandb.run.name}')
+        # Save current model with the provided aliases
+        checkpoints.save_checkpoint(ckpt_dir=ckpt_dir,
+                                    target={'params': self.state.params,
+                                            'batch_stats': self.state.batch_stats},
+                                    step=epoch,
+                                    overwrite=True)
+        # Log to wandb
+        metadata = {
+            'score': value,
+        }
+        checkpoint = wandb.Artifact(
+            f"model-{wandb.run.name}", type="model", metadata=metadata,
+        )
+        checkpoint.add_file(os.path.join(ckpt_dir, f'checkpoint_{epoch}'))
+        wandb.log_artifact(checkpoint, aliases=aliases)
+
+    def load(self, alias):
+        # Download artifact with given alias model
+        artifact = f"{wandb.run.entity}/{wandb.run.project}/model-{wandb.run.name}:{alias}"
+        artifact = wandb.Api().artifact(artifact)
+        ckpt_path = artifact.download(
+            root=hydra.utils.get_original_cwd() + f"/artifacts/{artifact.name}"
+        )
+        # Restore checkpoint
+        state_dict = checkpoints.restore_checkpoint(ckpt_dir=ckpt_path, target=None)
+        self.state = TrainState.create(
+            apply_fn=self.network.apply,
+            params=state_dict['params'],
+            batch_stats=state_dict['batch_stats'],
+            tx=self.state.tx,
+        )
+
+    def on_train_end(self):
+        pass
 
     def training_step(self, state, batch):
         raise NotImplementedError
@@ -101,6 +171,7 @@ class ClassificationWrapper(WrapperBase):
         )
         self.training_step = jax.jit(self.training_step)
         self.validation_step = jax.jit(self.validation_step)
+        self.test_step = jax.jit(self.test_step)
 
     def step(self, params, batch_stats, batch, train):
         data, labels = batch
